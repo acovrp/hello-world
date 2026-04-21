@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta name="theme-color" content="#080f1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Council">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icons/icon192.png">
+  <title>The Council</title>
+  <style>
+    :root {
+      --bg: #080f1a;
+      --surface: #0e1825;
+      --border: rgba(255,255,255,0.07);
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --claude-color: #8b5cf6;
+      --gemini-color: #10b981;
+      --chatgpt-color: #f59e0b;
+      --user-color: #6366f1;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', system-ui, sans-serif;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Header ── */
+    .header {
+      padding: 12px 16px 10px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      padding-top: max(12px, env(safe-area-inset-top));
+    }
+    .header-brand {
+      display: flex; align-items: center; gap: 10px;
+    }
+    .council-dots {
+      display: flex; gap: 4px; align-items: center;
+    }
+    .cdot {
+      width: 7px; height: 7px; border-radius: 50%;
+    }
+    .brand-text h1 {
+      font-size: 15px; font-weight: 800; letter-spacing: -0.3px;
+      color: white;
+    }
+    .brand-text p {
+      font-size: 10px; color: var(--muted);
+    }
+    .header-actions { display: flex; gap: 8px; }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--muted); font-size: 14px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    }
+
+    /* ── Model status bar ── */
+    .model-bar {
+      padding: 8px 16px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 8px;
+      flex-shrink: 0;
+    }
+    .model-pill {
+      display: flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 20px;
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.03);
+      font-size: 11px; font-weight: 600;
+      cursor: pointer; user-select: none;
+      transition: all 0.15s;
+    }
+    .model-pill.active { opacity: 1; }
+    .model-pill.inactive { opacity: 0.35; }
+    .model-pill .mpd {
+      width: 6px; height: 6px; border-radius: 50%;
+    }
+    .model-pill.claude-pill { color: var(--claude-color); border-color: rgba(139,92,246,0.25); }
+    .model-pill.claude-pill.active { background: rgba(139,92,246,0.1); }
+    .model-pill.gemini-pill { color: var(--gemini-color); border-color: rgba(16,185,129,0.25); }
+    .model-pill.gemini-pill.active { background: rgba(16,185,129,0.1); }
+    .model-pill.chatgpt-pill { color: var(--chatgpt-color); border-color: rgba(245,158,11,0.25); }
+    .model-pill.chatgpt-pill.active { background: rgba(245,158,11,0.1); }
+    .round-indicator {
+      margin-left: auto;
+      font-size: 10px; color: var(--muted);
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* ── Chat feed ── */
+    .chat-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scroll-behavior: smooth;
+    }
+
+    /* ── Message bubbles ── */
+    .msg {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      animation: msgIn 0.2s ease;
+      max-width: 100%;
+    }
+    @keyframes msgIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .msg-header {
+      display: flex; align-items: center; gap: 6px;
+      padding-left: 4px;
+    }
+    .msg-avatar {
+      width: 22px; height: 22px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 800; flex-shrink: 0;
+    }
+    .msg-name { font-size: 11px; font-weight: 700; }
+    .msg-time { font-size: 10px; color: var(--muted); margin-left: auto; }
+
+    .msg-bubble {
+      border-radius: 14px;
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.6;
+      border: 1px solid var(--border);
+    }
+
+    /* User message */
+    .msg.user { align-items: flex-end; }
+    .msg.user .msg-bubble {
+      background: rgba(99,102,241,0.15);
+      border-color: rgba(99,102,241,0.3);
+      color: #c7d2fe;
+      border-bottom-right-radius: 4px;
+    }
+    .msg.user .msg-name { color: var(--user-color); }
+    .msg.user .msg-avatar { background: rgba(99,102,241,0.2); color: var(--user-color); }
+
+    /* Claude message */
+    .msg.claude .msg-bubble {
+      background: rgba(139,92,246,0.07);
+      border-color: rgba(139,92,246,0.2);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.claude .msg-name { color: var(--claude-color); }
+    .msg.claude .msg-avatar { background: rgba(139,92,246,0.15); color: var(--claude-color); }
+
+    /* Gemini message */
+    .msg.gemini .msg-bubble {
+      background: rgba(16,185,129,0.07);
+      border-color: rgba(16,185,129,0.2);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.gemini .msg-name { color: var(--gemini-color); }
+    .msg.gemini .msg-avatar { background: rgba(16,185,129,0.15); color: var(--gemini-color); }
+
+    /* ChatGPT message */
+    .msg.chatgpt .msg-bubble {
+      background: rgba(245,158,11,0.07);
+      border-color: rgba(245,158,11,0.2);
+      border-bottom-left-radius: 4px;
+    }
+    .msg.chatgpt .msg-name { color: var(--chatgpt-color); }
+    .msg.chatgpt .msg-avatar { background: rgba(245,158,11,0.15); color: var(--chatgpt-color); }
+
+    /* System message */
+    .msg.system {
+      align-items: center;
+    }
+    .msg.system .msg-bubble {
+      background: rgba(255,255,255,0.03);
+      border-style: dashed;
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      padding: 6px 16px;
+    }
+
+    /* ── Typing indicator ── */
+    .typing-indicator {
+      display: flex; align-items: center; gap: 4px;
+      padding: 8px 14px;
+    }
+    .typing-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--muted);
+      animation: typingBounce 1.2s infinite;
+    }
+    .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes typingBounce {
+      0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
+      40% { transform: translateY(-5px); opacity: 1; }
+    }
+
+    /* ── Round summary card ── */
+    .round-card {
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      overflow: hidden;
+      background: rgba(255,255,255,0.02);
+    }
+    .round-card-header {
+      padding: 10px 14px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .round-card-title {
+      font-size: 12px; font-weight: 700; color: #a5b4fc;
+    }
+    .round-card-body {
+      padding: 10px 14px;
+    }
+    .round-card-body p {
+      font-size: 12px; color: #94a3b8; line-height: 1.6;
+    }
+    .round-actions {
+      display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+    }
+    .round-btn {
+      padding: 6px 12px; border-radius: 8px; border: none;
+      font-size: 11px; font-weight: 700; cursor: pointer;
+      font-family: inherit;
+    }
+    .round-btn-primary {
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      color: white;
+    }
+    .round-btn-secondary {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .round-btn-end {
+      background: rgba(239,68,68,0.1);
+      border: 1px solid rgba(239,68,68,0.2);
+      color: #f87171;
+    }
+
+    /* ── Input area ── */
+    .input-area {
+      padding: 10px 12px;
+      padding-bottom: max(10px, env(safe-area-inset-bottom));
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .input-row {
+      display: flex; gap: 8px; align-items: flex-end;
+    }
+    .input-wrap {
+      flex: 1;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 8px 14px;
+      display: flex; align-items: flex-end; gap: 8px;
+      transition: border-color 0.15s;
+    }
+    .input-wrap:focus-within {
+      border-color: rgba(99,102,241,0.4);
+    }
+    textarea#mainInput {
+      flex: 1; background: transparent; border: none;
+      color: white; font-size: 14px; resize: none;
+      outline: none; font-family: inherit;
+      max-height: 100px; min-height: 22px;
+      line-height: 1.5;
+    }
+    textarea#mainInput::placeholder { color: var(--muted); }
+
+    .send-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: linear-gradient(135deg, #6366f1, #4f46e5);
+      border: none; color: white; font-size: 16px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0;
+      box-shadow: 0 2px 10px rgba(99,102,241,0.4);
+      transition: all 0.15s;
+    }
+    .send-btn:disabled {
+      opacity: 0.4; cursor: not-allowed;
+      box-shadow: none;
+    }
+    .send-btn:active { transform: scale(0.95); }
+
+    /* ── Rounds selector ── */
+    .rounds-row {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 8px; padding: 0 2px;
+    }
+    .rounds-label { font-size: 11px; color: var(--muted); }
+    .rounds-control { display: flex; align-items: center; gap: 6px; }
+    .rnd-btn {
+      width: 22px; height: 22px; border-radius: 6px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      color: white; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .rnd-val { font-size: 12px; font-weight: 700; color: white; min-width: 16px; text-align: center; }
+
+    /* ── Extension warning ── */
+    .ext-warning {
+      margin: 0 16px 12px;
+      padding: 10px 14px;
+      background: rgba(245,158,11,0.08);
+      border: 1px solid rgba(245,158,11,0.2);
+      border-radius: 10px;
+      font-size: 11px;
+      color: #fcd34d;
+      line-height: 1.5;
+    }
+    .ext-warning a { color: #fbbf24; }
+
+    /* ── Welcome screen ── */
+    .welcome {
+      flex: 1; display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      padding: 24px; text-align: center; gap: 12px;
+    }
+    .welcome-icon { font-size: 48px; }
+    .welcome h2 { font-size: 20px; font-weight: 800; color: white; }
+    .welcome p { font-size: 13px; color: var(--muted); line-height: 1.7; max-width: 280px; }
+    .welcome-steps {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: left;
+      width: 100%;
+      max-width: 320px;
+    }
+    .welcome-step {
+      display: flex; gap: 10px; align-items: flex-start;
+      padding: 6px 0;
+      font-size: 12px; color: #94a3b8; line-height: 1.5;
+    }
+    .step-num {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(99,102,241,0.2);
+      color: #a5b4fc; font-size: 10px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 3px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+
+    /* ── Loading overlay ── */
+    #sessionLoading {
+      display: none;
+      position: fixed; inset: 0;
+      background: rgba(8,15,26,0.8);
+      backdrop-filter: blur(4px);
+      z-index: 100;
+      align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+    }
+    #sessionLoading.show { display: flex; }
+    .loading-spinner {
+      width: 36px; height: 36px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #6366f1;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+  <!-- Loading overlay -->
+  <div id="sessionLoading">
+    <div class="loading-spinner"></div>
+    <div class="loading-text" id="loadingText">Opening AI sessions...</div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-brand">
+      <div class="council-dots">
+        <div class="cdot" style="background:#f59e0b;box-shadow:0 0 5px #f59e0b"></div>
+        <div class="cdot" style="background:#10b981;box-shadow:0 0 5px #10b981"></div>
+        <div class="cdot" style="background:#8b5cf6;box-shadow:0 0 5px #8b5cf6"></div>
+      </div>
+      <div class="brand-text">
+        <h1>The Council</h1>
+        <p id="headerSub">Multi-AI Strategic Debate</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="icon-btn" onclick="newSession()" title="New session">✕</div>
+      <div class="icon-btn" onclick="toggleHistory()" title="History">☰</div>
+    </div>
+  </div>
+
+  <!-- Model bar -->
+  <div class="model-bar">
+    <div class="model-pill claude-pill active" id="pill-claude" onclick="toggleModel('claude')">
+      <div class="mpd" style="background:var(--claude-color)"></div>
+      Claude
+    </div>
+    <div class="model-pill gemini-pill active" id="pill-gemini" onclick="toggleModel('gemini')">
+      <div class="mpd" style="background:var(--gemini-color)"></div>
+      Gemini
+    </div>
+    <div class="model-pill chatgpt-pill active" id="pill-chatgpt" onclick="toggleModel('chatgpt')">
+      <div class="mpd" style="background:var(--chatgpt-color)"></div>
+      ChatGPT
+    </div>
+    <div class="round-indicator" id="roundIndicator">
+      <span id="roundText">Not started</span>
+    </div>
+  </div>
+
+  <!-- Chat feed -->
+  <div class="chat-feed" id="chatFeed">
+    <!-- Welcome state -->
+    <div class="welcome" id="welcomeScreen">
+      <div class="welcome-icon">⚡</div>
+      <h2>The Council</h2>
+      <p>Claude, Gemini, and ChatGPT debate your question in sequence — each reading what came before.</p>
+      <div class="welcome-steps">
+        <div class="welcome-step">
+          <div class="step-num">1</div>
+          <span>Install the Council extension in Kiwi Browser</span>
+        </div>
+        <div class="welcome-step">
+          <div class="step-num">2</div>
+          <span>Log into Claude, Gemini & ChatGPT in Kiwi</span>
+        </div>
+        <div class="welcome-step">
+          <div class="step-num">3</div>
+          <span>Type your question and hit send</span>
+        </div>
+        <div class="welcome-step">
+          <div class="step-num">4</div>
+          <span>Watch them debate. Jump in between rounds.</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Input area -->
+  <div class="input-area">
+    <div class="rounds-row" id="roundsRow">
+      <span class="rounds-label">Rounds:</span>
+      <div class="rounds-control">
+        <button class="rnd-btn" onclick="changeRounds(-1)">−</button>
+        <span class="rnd-val" id="roundsVal">3</span>
+        <button class="rnd-btn" onclick="changeRounds(1)">+</button>
+      </div>
+      <span class="rounds-label" style="font-size:10px;margin-left:4px">back-and-forth</span>
+    </div>
+    <div class="input-row">
+      <div class="input-wrap">
+        <textarea id="mainInput"
+          placeholder="Ask the council..."
+          rows="1"
+          oninput="autoResize(this)"
+          onkeydown="handleKey(event)"></textarea>
+      </div>
+      <button class="send-btn" id="sendBtn" onclick="handleSend()">↑</button>
+    </div>
+  </div>
+
+<script src="app.js"></script>
+</body>
+</html>
